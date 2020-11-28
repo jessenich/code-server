@@ -131,7 +131,7 @@ sed -i.bak 's/auth: password/auth: none/' ~/.config/code-server/config.yaml
 Restart `code-server` with (assuming you followed the guide):
 
 ```bash
-systemctl --user restart code-server
+sudo systemctl restart code-server@$USER
 ```
 
 Now forward local port 8080 to `127.0.0.1:8080` on the remote instance by running the following command on your local machine.
@@ -251,8 +251,7 @@ Visit `https://<your-domain-name>` to access `code-server`. Congratulations!
 
 ### Self Signed Certificate
 
-**note:** Self signed certificates do not work with iPad and will cause a blank page. You'll
-have to use [Let's Encrypt](#lets-encrypt) instead. See the [FAQ](./FAQ.md#blank-screen-on-ipad).
+**note:** Self signed certificates do not work with iPad normally. See [./ipad.md](./ipad.md) for details.
 
 Recommended reading: https://security.stackexchange.com/a/8112.
 
@@ -277,7 +276,7 @@ sudo setcap cap_net_bind_service=+ep /usr/lib/code-server/lib/node
 Assuming you have been following the guide, restart `code-server` with:
 
 ```bash
-systemctl --user restart code-server
+sudo systemctl restart code-server@$USER
 ```
 
 Edit your instance and checkmark the allow HTTPS traffic option.
@@ -295,7 +294,7 @@ Edit the `password` field in the `code-server` config file at `~/.config/code-se
 and then restart `code-server` with:
 
 ```bash
-systemctl --user restart code-server
+sudo systemctl restart code-server@$USER
 ```
 
 ### How do I securely access development web services?

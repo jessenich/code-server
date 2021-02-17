@@ -5,9 +5,20 @@ import qs from "qs"
 import safeCompare from "safe-compare"
 import { HttpCode, HttpError } from "../common/http"
 import { normalize, Options } from "../common/util"
-import { AuthType } from "./cli"
+import { AuthType, DefaultedArgs } from "./cli"
 import { commit, rootPath } from "./constants"
+import { Heart } from "./heart"
 import { hash } from "./util"
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    export interface Request {
+      args: DefaultedArgs
+      heart: Heart
+    }
+  }
+}
 
 /**
  * Replace common variable strings in HTML templates.
@@ -52,7 +63,12 @@ export const authenticated = (req: express.Request): boolean => {
       return true
     case AuthType.Password:
       // The password is stored in the cookie after being hashed.
-      return req.args.password && req.cookies.key && safeCompare(req.cookies.key, hash(req.args.password))
+      return !!(
+        req.cookies.key &&
+        (req.args["hashed-password"]
+          ? safeCompare(req.cookies.key, req.args["hashed-password"])
+          : req.args.password && safeCompare(req.cookies.key, hash(req.args.password)))
+      )
     default:
       throw new Error(`Unsupported auth type ${req.args.auth}`)
   }

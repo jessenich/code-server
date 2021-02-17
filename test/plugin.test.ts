@@ -1,35 +1,72 @@
 import { logger } from "@coder/logger"
 import * as express from "express"
 import * as fs from "fs"
-import { describe } from "mocha"
 import * as path from "path"
-import * as supertest from "supertest"
-import { PluginAPI } from "../src/node/plugin"
+import { HttpCode } from "../src/common/http"
+import { AuthType } from "../src/node/cli"
+import { codeServer, PluginAPI } from "../src/node/plugin"
 import * as apps from "../src/node/routes/apps"
+import * as httpserver from "./httpserver"
 const fsp = fs.promises
+
+// Jest overrides `require` so our usual override doesn't work.
+jest.mock("code-server", () => codeServer, { virtual: true })
 
 /**
  * Use $LOG_LEVEL=debug to see debug logs.
  */
 describe("plugin", () => {
   let papi: PluginAPI
-  let app: express.Application
-  let agent: supertest.SuperAgentTest
+  let s: httpserver.HttpServer
 
-  before(async () => {
-    papi = new PluginAPI(logger, path.resolve(__dirname, "test-plugin") + ":meow")
-    await papi.loadPlugins()
+  beforeAll(async () => {
+    // Only include the test plugin to avoid contaminating results with other
+    // plugins that might be on the filesystem.
+    papi = new PluginAPI(logger, `${path.resolve(__dirname, "test-plugin")}:meow`, "")
+    await papi.loadPlugins(false)
 
-    app = express.default()
-    papi.mount(app)
+    const app = express.default()
+    const wsApp = express.default()
 
+    const common: express.RequestHandler = (req, _, next) => {
+      // Routes might use these arguments.
+      req.args = {
+        _: [],
+        auth: AuthType.None,
+        host: "localhost",
+        port: 8080,
+        "proxy-domain": [],
+        config: "~/.config/code-server/config.yaml",
+        verbose: false,
+        usingEnvPassword: false,
+        usingEnvHashedPassword: false,
+        "extensions-dir": "",
+        "user-data-dir": "",
+      }
+      next()
+    }
+
+    app.use(common)
+    wsApp.use(common)
+
+    papi.mount(app, wsApp)
     app.use("/api/applications", apps.router(papi))
 
-    agent = supertest.agent(app)
+    s = new httpserver.HttpServer()
+    await s.listen(app)
+    s.listenUpgrade(wsApp)
+  })
+
+  afterAll(async () => {
+    await s.close()
   })
 
   it("/api/applications", async () => {
-    await agent.get("/api/applications").expect(200, [
+    const resp = await s.fetch("/api/applications")
+    expect(resp.status).toBe(200)
+    const body = await resp.json()
+    logger.debug(`${JSON.stringify(body)}`)
+    expect(body).toStrictEqual([
       {
         name: "Test App",
         version: "4.0.0",
@@ -57,6 +94,23 @@ describe("plugin", () => {
     const indexHTML = await fsp.readFile(path.join(__dirname, "test-plugin/public/index.html"), {
       encoding: "utf8",
     })
-    await agent.get("/test-plugin/test-app").expect(200, indexHTML)
+    const resp = await s.fetch("/test-plugin/test-app")
+    expect(resp.status).toBe(200)
+    const body = await resp.text()
+    expect(body).toBe(indexHTML)
+  })
+
+  it("/test-plugin/test-app (websocket)", async () => {
+    const ws = s.ws("/test-plugin/test-app")
+    const message = await new Promise((resolve) => {
+      ws.once("message", (message) => resolve(message))
+    })
+    ws.terminate()
+    expect(message).toBe("hello")
+  })
+
+  it("/test-plugin/error", async () => {
+    const resp = await s.fetch("/test-plugin/error")
+    expect(resp.status).toBe(HttpCode.LargePayload)
   })
 })

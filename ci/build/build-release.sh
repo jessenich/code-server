@@ -43,6 +43,10 @@ bundle_code_server() {
   rsync src/browser/pages/*.html "$RELEASE_PATH/src/browser/pages"
   rsync src/browser/robots.txt "$RELEASE_PATH/src/browser"
 
+  # Add typings for plugins
+  mkdir -p "$RELEASE_PATH/typings"
+  rsync typings/pluginapi.d.ts "$RELEASE_PATH/typings"
+
   # Adds the commit to package.json
   jq --slurp '.[0] * .[1]' package.json <(
     cat << EOF
@@ -79,8 +83,9 @@ bundle_vscode() {
   rsync "$VSCODE_SRC_PATH/extensions/yarn.lock" "$VSCODE_OUT_PATH/extensions"
   rsync "$VSCODE_SRC_PATH/extensions/postinstall.js" "$VSCODE_OUT_PATH/extensions"
 
-  mkdir -p "$VSCODE_OUT_PATH/resources/linux"
+  mkdir -p "$VSCODE_OUT_PATH/resources/"{linux,web}
   rsync "$VSCODE_SRC_PATH/resources/linux/code.png" "$VSCODE_OUT_PATH/resources/linux/code.png"
+  rsync "$VSCODE_SRC_PATH/resources/web/callback.html" "$VSCODE_OUT_PATH/resources/web/callback.html"
 
   # Adds the commit and date to product.json
   jq --slurp '.[0] * .[1]' "$VSCODE_SRC_PATH/product.json" <(
@@ -96,6 +101,10 @@ EOF
   # yarn to fetch node_modules if necessary without build scripts running.
   # We cannot use --no-scripts because we still want dependent package scripts to run.
   jq 'del(.scripts)' < "$VSCODE_SRC_PATH/package.json" > "$VSCODE_OUT_PATH/package.json"
+
+  pushd "$VSCODE_OUT_PATH"
+  symlink_asar
+  popd
 }
 
 main "$@"

@@ -101,3 +101,22 @@ export const arrayify = <T>(value?: T | T[]): T[] => {
   }
   return [value]
 }
+
+/**
+ * Get the first string. If there's no string return undefined.
+ */
+export const getFirstString = (value: string | string[] | object | undefined): string | undefined => {
+  if (Array.isArray(value)) {
+    return value[0]
+  }
+
+  return typeof value === "string" ? value : undefined
+}
+
+export function logError(prefix: string, err: any): void {
+  if (err instanceof Error) {
+    logger.error(`${prefix}: ${err.message} ${err.stack}`)
+  } else {
+    logger.error(`${prefix}: ${err}`)
+  }
+}
